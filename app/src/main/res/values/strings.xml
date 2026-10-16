@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Flow</string>
+    <string name="shell_tagline">Ritmni ushlab turing</string>
+    <string name="shell_status">Ilova tayyor. Keyingi bosqichlar ustida ishlayapmiz.</string>
+    <string name="shell_version">Versiya %1$s</string>
+</resources>

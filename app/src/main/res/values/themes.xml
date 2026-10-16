@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Default tun mavzusi: oq yaltirashni oldini olish uchun qorong'i oyna foni. -->
+    <style name="Theme.Flow" parent="android:Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">@color/flow_window_background</item>
+    </style>
+</resources>

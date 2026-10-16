@@ -1,0 +1,15 @@
+.gradle/
+build/
+.kotlin/
+.idea/
+*.iml
+local.properties
+captures/
+.DS_Store
+
+# Imzo materiallari: HECH QACHON commit qilinmaydi
+*.jks
+*.keystore
+*.p12
+*.b64
+keystore.properties

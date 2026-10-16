@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Flow</string>
+    <string name="shell_tagline">Keep your rhythm</string>
+    <string name="shell_status">The app shell is ready. More stages are on the way.</string>
+    <string name="shell_version">Version %1$s</string>
+</resources>
