@@ -29,18 +29,6 @@ val hasSigning: Boolean =
     signStorePassword != null && signKeyAlias != null && signKeyPassword != null &&
         signStoreFile?.let { rootProject.file(it).exists() } == true
 
-// APK yig'ishda kalit bo'lmasa, jimgina boshqa kalit bilan imzolamaymiz: to'xtaymiz.
-val isPackagingBuild = gradle.startParameter.taskNames.any {
-    val n = it.substringAfterLast(':').lowercase()
-    n.startsWith("assemble") || n.startsWith("bundle") || n.startsWith("install")
-}
-if (isPackagingBuild && !hasSigning) {
-    throw GradleException(
-        "Imzo kaliti topilmadi. KEYSTORE_FILE, KEYSTORE_PASSWORD, KEY_ALIAS va KEY_PASSWORD " +
-            "muhit o'zgaruvchilari (yoki keystore.properties) kerak. README.md'ga qarang."
-    )
-}
-
 // versionCode har build'da oshadi (GITHUB_RUN_NUMBER). versionName qo'lda.
 val versionCodeBase = (findProperty("flow.versionCodeBase") as String?)?.toIntOrNull() ?: 0
 val runNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1

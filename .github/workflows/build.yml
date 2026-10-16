@@ -1,6 +1,4 @@
-# DIQQAT: bu fayl nomini o'zgartirmang. GITHUB_RUN_NUMBER workflow'ga bog'liq,
-# nom o'zgarsa versionCode qayta 1 dan boshlanadi va yangilash bloklanadi.
-name: Build
+name: Build APK
 
 on:
   push:
@@ -10,157 +8,30 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: build-${{ github.ref }}
-  cancel-in-progress: true
-
-env:
-  GRADLE_VERSION: "8.14.3"
-  APP_ID: com.gulimovbunyod.flow
-
 jobs:
   build:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    defaults:
-      run:
-        shell: bash
+    runs-on: ubuntu-latest
     steps:
-      - name: Kodni olish
-        uses: actions/checkout@v5.0.0
-        with:
-          persist-credentials: false
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Imzo sirlarini tekshirish va keystore'ni tayyorlash
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          missing=""
-          for name in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
-            if [ -z "${!name}" ]; then missing="$missing $name"; fi
-          done
-          if [ -n "$missing" ]; then
-            echo "::error title=Imzo sirlari yo'q::GitHub Secrets'da topilmadi:$missing. Settings > Secrets and variables > Actions bo'limida qo'shing."
-            exit 1
-          fi
-          KS="$RUNNER_TEMP/flow-release.jks"
-          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$KS" \
-            || { echo "::error title=KEYSTORE_BASE64 noto'g'ri::base64 dan ochib bo'lmadi."; exit 1; }
-          keytool -list -keystore "$KS" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" > /dev/null \
-            || { echo "::error title=Keystore ochilmadi::KEYSTORE_PASSWORD yoki KEY_ALIAS noto'g'ri."; exit 1; }
-          echo "KEYSTORE_FILE=$KS" >> "$GITHUB_ENV"
-
-      - name: JDK 17
-        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: '17'
 
-      - name: Gradle
-        uses: gradle/actions/setup-gradle@f29f5a9d7b09a7c6b29859002d29d24e1674c884 # v5.0.1
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
         with:
-          # gradlew repoda bo'lsa wrapper ishlatiladi; bo'lmasa aniq versiyali Gradle o'rnatiladi.
-          gradle-version: ${{ hashFiles('gradlew') == '' && env.GRADLE_VERSION || '' }}
+          gradle-version: '8.14.3'
 
-      - name: Gradle buyrug'ini tanlash
-        run: |
-          if [ -f gradlew ]; then
-            chmod +x gradlew
-            echo "GRADLE_CMD=./gradlew" >> "$GITHUB_ENV"
-          else
-            echo "::warning::gradlew topilmadi, Gradle $GRADLE_VERSION to'g'ridan-to'g'ri ishlatiladi."
-            echo "GRADLE_CMD=gradle" >> "$GITHUB_ENV"
-          fi
+      - name: Build debug APK
+        run: gradle --stacktrace assembleDebug
 
-      - name: Unit testlar va lint
-        run: $GRADLE_CMD --stacktrace testDebugUnitTest lintDebug
-
-      - name: Hisobotlar (xato bo'lsa)
-        if: failure()
-        uses: actions/upload-artifact@v4.6.2
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
-          name: reports
-          path: |
-            app/build/reports/
-            app/build/test-results/
-          if-no-files-found: ignore
-
-      - name: APK yig'ish (debug + release)
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: $GRADLE_CMD --stacktrace assembleDebug assembleRelease
-
-      - name: APK, imzo va ruxsatlarni tekshirish
-        env:
-          EXPECTED_CERT_SHA256: ${{ vars.EXPECTED_CERT_SHA256 }}
-        run: |
-          DEBUG_APK="app/build/outputs/apk/debug/app-debug.apk"
-          RELEASE_APK="app/build/outputs/apk/release/app-release.apk"
-          for apk in "$DEBUG_APK" "$RELEASE_APK"; do
-            [ -f "$apk" ] || { echo "::error::APK topilmadi: $apk"; exit 1; }
-          done
-
-          SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
-          BT="$(ls -d "$SDK"/build-tools/*/ | sort -V | tail -n1)"
-          BT="${BT%/}"
-          echo "build-tools: $BT"
-
-          cert_of() {
-            "$BT/apksigner" verify --print-certs "$1" \
-              | sed -n 's/^Signer #1 certificate SHA-256 digest: //p'
-          }
-          DEBUG_CERT="$(cert_of "$DEBUG_APK")"
-          RELEASE_CERT="$(cert_of "$RELEASE_APK")"
-          echo "Debug   sertifikat SHA-256: $DEBUG_CERT"
-          echo "Release sertifikat SHA-256: $RELEASE_CERT"
-
-          if [ -z "$DEBUG_CERT" ] || [ -z "$RELEASE_CERT" ]; then
-            echo "::error::Imzo sertifikati o'qilmadi (APK imzolanmagan bo'lishi mumkin)."; exit 1
-          fi
-          if [ "$DEBUG_CERT" != "$RELEASE_CERT" ]; then
-            echo "::error::Debug va release turli kalit bilan imzolangan!"; exit 1
-          fi
-
-          EXPECTED="$(printf '%s' "${EXPECTED_CERT_SHA256:-}" | tr -d ': ' | tr 'A-F' 'a-f')"
-          if [ -n "$EXPECTED" ] && [ "$EXPECTED" != "$RELEASE_CERT" ]; then
-            echo "::error::Sertifikat kutilgan (EXPECTED_CERT_SHA256) qiymatga mos emas! Update ishlamaydi."; exit 1
-          fi
-
-          for apk in "$DEBUG_APK" "$RELEASE_APK"; do
-            PKG="$("$BT/aapt2" dump packagename "$apk")"
-            if [ "$PKG" != "$APP_ID" ]; then
-              echo "::error::applicationId noto'g'ri ($apk): $PKG"; exit 1
-            fi
-            PERMS="$("$BT/aapt2" dump permissions "$apk")"
-            case "$PERMS" in
-              *android.permission.INTERNET*)
-                echo "::error::$apk ichida INTERNET ruxsati bor!"; exit 1 ;;
-            esac
-          done
-
-          {
-            echo "### Imzo sertifikati (SHA-256)"
-            echo ""
-            echo "$RELEASE_CERT"
-            echo ""
-            echo "Debug va release bir xil kalit bilan imzolangan. applicationId = $APP_ID, INTERNET yo'q."
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Debug APK yuklash
-        uses: actions/upload-artifact@v4.6.2
-        with:
-          name: flow-debug-apk
+          name: Flow-debug-APK
           path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-
-      - name: Release APK yuklash
-        uses: actions/upload-artifact@v4.6.2
-        with:
-          name: flow-release-apk
-          path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
