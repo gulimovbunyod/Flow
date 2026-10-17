@@ -59,12 +59,14 @@ android {
 
     buildTypes {
         debug {
-            if (hasSigning) signingConfig = signingConfigs.getByName("flow")
+            if (!hasSigning) throw GradleException("Flow signing key missing. Configure keystore.properties locally or GitHub Actions signing secrets.")
+            signingConfig = signingConfigs.getByName("flow")
         }
         release {
             isMinifyEnabled = false
             isShrinkResources = false
-            if (hasSigning) signingConfig = signingConfigs.getByName("flow")
+            if (!hasSigning) throw GradleException("Flow signing key missing. Configure keystore.properties locally or GitHub Actions signing secrets.")
+            signingConfig = signingConfigs.getByName("flow")
         }
     }
 

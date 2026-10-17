@@ -26,7 +26,23 @@ jobs:
         with:
           gradle-version: '8.14.3'
 
-      - name: Build debug APK
+      - name: Prepare permanent signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "Missing GitHub Actions secret KEYSTORE_BASE64. Add the permanent Flow keystore secrets first." >&2
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/flow-upload.jks"
+          test -s "$RUNNER_TEMP/flow-upload.jks"
+
+      - name: Build signed debug APK
+        env:
+          KEYSTORE_FILE: ${{ runner.temp }}/flow-upload.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: gradle --stacktrace assembleDebug
 
       - name: Upload APK

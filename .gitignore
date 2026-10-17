@@ -13,3 +13,7 @@ captures/
 *.p12
 *.b64
 keystore.properties
+/flow-upload.jks
+/flow-upload.jks.base64
+/keystore.properties
+/app/src/main/kotlin/com/gulimovbunyod/flow/MainActivity.kt.bak
